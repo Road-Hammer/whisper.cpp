@@ -1,0 +1,73 @@
+name: Fork Schedule Guard
+
+on:
+  push:
+    paths: [".github/workflows/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-schedule-guard
+  cancel-in-progress: true
+
+jobs:
+  remove-inherited-cron:
+    if: github.repository_owner == 'Road-Hammer'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Remove inherited schedule triggers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root = Path('.github/workflows')
+          guard = root / 'fork-schedule-guard.yml'
+          changed = []
+          def indent(line): return len(line) - len(line.lstrip(' '))
+          for path in sorted([*root.glob('*.yml'), *root.glob('*.yaml')]):
+              if path == guard: continue
+              original = path.read_text(encoding='utf-8')
+              lines = original.splitlines(keepends=True)
+              out, i, altered = [], 0, False
+              while i < len(lines):
+                  line = lines[i]
+                  if re.match(r'^on:\s*(?:#.*)?(?:\r?\n)?$', line):
+                      out.append(line); i += 1; block = []
+                      while i < len(lines):
+                          candidate = lines[i]
+                          stripped = candidate.strip()
+                          if stripped and not candidate.startswith((' ', '\t')) and not stripped.startswith('#'): break
+                          block.append(candidate); i += 1
+                      cleaned, j = [], 0
+                      while j < len(block):
+                          candidate = block[j]
+                          if re.match(r'^ {2}schedule:\s*(?:#.*)?(?:\r?\n)?$', candidate):
+                              altered = True; j += 1
+                              while j < len(block):
+                                  following = block[j]
+                                  if following.strip() and not following.lstrip().startswith('#') and indent(following) <= 2: break
+                                  j += 1
+                              continue
+                          cleaned.append(candidate); j += 1
+                      has_trigger = any(re.match(r'^ {2}[A-Za-z0-9_-]+:\s*', x) for x in cleaned if x.strip() and not x.lstrip().startswith('#'))
+                      if altered and not has_trigger: cleaned.insert(0, '  workflow_dispatch:\n')
+                      out.extend(cleaned); continue
+                  out.append(line); i += 1
+              updated = ''.join(out)
+              if altered and updated != original:
+                  path.write_text(updated, encoding='utf-8'); changed.append(str(path))
+          print('Disabled cron schedules in:\n' + '\n'.join(changed) if changed else 'No inherited cron schedules found.')
+          PY
+      - name: Commit fork schedule policy
+        run: |
+          if git diff --quiet -- .github/workflows; then exit 0; fi
+          git config user.name "Road Hammer Fork Guard"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/workflows
+          git commit -m "Disable inherited scheduled workflows on fork"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
