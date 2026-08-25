@@ -5,7 +5,7 @@ include(CheckIncludeFileCXX)
 ### whisper.cpp version
 set(WHISPER_VERSION_MAJOR 1)
 set(WHISPER_VERSION_MINOR 9)
-set(WHISPER_VERSION_PATCH 2)
+set(WHISPER_VERSION_PATCH 3)
 set(WHISPER_VERSION_BASE "${WHISPER_VERSION_MAJOR}.${WHISPER_VERSION_MINOR}.${WHISPER_VERSION_PATCH}")
 
 # whether this is a development/nightly build
@@ -115,6 +115,7 @@ endif()
 option(WHISPER_COREML                "whisper: enable Core ML framework"  OFF)
 option(WHISPER_COREML_ALLOW_FALLBACK "whisper: allow non-CoreML fallback" OFF)
 option(WHISPER_OPENVINO              "whisper: support for OpenVINO"      OFF)
+option(WHISPER_VITISAI               "whisper: support for AMD Vitis AI"  OFF)
 
 # Required for relocatable CMake package
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/build-info.cmake)
